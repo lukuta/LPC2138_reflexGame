@@ -44,12 +44,12 @@ static void initProc(void* arg);
 
 static void delayMs(tU32 delayInMs);
 
-
 void appTick(tU32 elapsedTime);
 volatile tU32 msClock;
 
 tU16 actualLed = 0;
-tU16 lives = 8;
+static tU16 lives = 8;
+static tU8 gameStarted = 0;
 tU16 delay = 1000;
 
 static char buffer[6];
@@ -58,9 +58,7 @@ static char buffer3[6];
 
 unsigned long turns = 0;
 
-
-void saveToEpprom(int score)
-{
+void saveToEpprom(int score) {
 	tU8 tmp[2];
 	tmp[0] = score & 0xFF;
 	tmp[1] = (score >> 8) & 0xFF;
@@ -69,7 +67,7 @@ void saveToEpprom(int score)
 	eepromPoll();
 }
 
-void clearEEPROM(){
+void clearEEPROM() {
 	tU8 tmp[2];
 	tmp[0] = 0 & 0xFF;
 	tmp[1] = (0 >> 8) & 0xFF;
@@ -88,23 +86,22 @@ int get_score() {
 	return score;
 }
 
-void my_utoa(int dataIn, char* bffr){
+void my_utoa(int dataIn, char* bffr) {
 	int temp_dataIn;
 	temp_dataIn = dataIn;
-	int stringLen=1;
+	int stringLen = 1;
 
-	while ((int)temp_dataIn/10 != 0){
-		temp_dataIn = (int)temp_dataIn/10;
+	while ((int) temp_dataIn / 10 != 0) {
+		temp_dataIn = (int) temp_dataIn / 10;
 		stringLen++;
 	}
 
 	temp_dataIn = dataIn;
-	do{
-		*(bffr+stringLen-1) = (temp_dataIn%10)+'0';
+	do {
+		*(bffr + stringLen - 1) = (temp_dataIn % 10) + '0';
 		temp_dataIn = (int) temp_dataIn / 10;
-	}while(stringLen--);
+	} while (stringLen--);
 }
-
 
 /*****************************************************************************
  *
@@ -112,27 +109,23 @@ void my_utoa(int dataIn, char* bffr){
  *    The first function to execute 
  *
  ****************************************************************************/
-int
-main(void)
-{
-  tU8 error;
-  tU8 pid;
+int main(void) {
+	tU8 error;
+	tU8 pid;
 
-  osInit();
-  osCreateProcess(initProc, initStack, INIT_STACK_SIZE, &pid, 1, NULL, &error);
-  osStartProcess(pid, &error);
-  
-  osStart();
+	osInit();
+	osCreateProcess(initProc, initStack, INIT_STACK_SIZE, &pid, 1, NULL, &error);
+	osStartProcess(pid, &error);
 
-  return 0;
+	osStart();
+
+	return 0;
 }
 
-inline void turnDelay()
-{
-   if(turns % 5 == 0)
-   {
-	delay = delay * 0.8;
-   }
+inline void turnDelay() {
+	if (turns % 5 == 0) {
+		delay = delay * 0.8;
+	}
 }
 
 /*****************************************************************************
@@ -145,87 +138,228 @@ inline void turnDelay()
  *
  ****************************************************************************/
 
-
-static void
-leds(void* arg)
-{
-
-  tU16 randLed = 0;
-
-  tU16 lfsr = 0xACE1u;
-  unsigned bit;
-
-  tU16
-  rand(){
-  	bit = ((lfsr >> 0) ^ (lfsr >> 2) ^ (lfsr >> 3) ^ (lfsr >> 5) ) & 1;
-  	return lfsr = (lfsr >> 1) | (bit << 15);
-  }
-
-	  for(;;){
-
-		  randLed = rand() % 4;
-
-
-		  switch(randLed){
-		  case 0:
-			  actualLed=1;
-			  //printf("actualLed=1\n");
-		      IOCLR1 = 0x00010000;
-		      delayMs(delay);
-		      IOSET1 = 0x00010000;
-		      break;
-		  case 1:
-			  actualLed= 2;
-			  //printf("actualLed=2\n");
-			  IOCLR1 = 0x00020000;
-			  delayMs(delay);
-		      IOSET1 = 0x00020000;
-		      break;
-		  case 2:
-			  actualLed = 3;
-			 // printf("actualLed=3\n");
-			  IOCLR1 = 0x00040000;
-			  delayMs(delay);
-		      IOSET1 = 0x00040000;
-		      break;
-		  case 3:
-			  actualLed = 4;
-			  //printf("actualLed=4\n");
-			  IOCLR1 = 0x00080000;
-			  delayMs(delay);
-		      IOSET1 = 0x00080000;
-		      break;
-
-		  }
-		  actualLed=0;
-		  delayMs(delay);
-	  }
-
+tU16 rand(unsigned *bit, tU16 *lfsr) {
+	bit = ((*lfsr >> 0) ^ (*lfsr >> 2) ^ (*lfsr >> 3) ^ (*lfsr >> 5)) & 1;
+	return *lfsr = (*lfsr >> 1) | (*bit << 15);
 }
 
-void
-clearBuffers(){
-	  buffer[0] = ' ';
-	  buffer[1] = ' ';
-	  buffer[2] = ' ';
-	  buffer[3] = ' ';
-	  buffer[4] = ' ';
-	  buffer[5] = '\0';
-	  buffer2[0] = ' ';
-	  buffer2[1] = ' ';
-	  buffer2[2] = '\0';
-	  buffer3[0] = ' ';
-      buffer3[1] = ' ';
-	  buffer3[2] = ' ';
-	  buffer3[3] = ' ';
-	  buffer3[4] = ' ';
-	  buffer3[5] = '\0';
-	  printf("clearBuffers() called \n");
+static void toggleLed(tU32 address, tU16 _actualLed, tU16 delay) {
+	actualLed = _actualLed;
+	IOCLR1 = address;
+	delayMs(delay);
+	IOSET1 = address;
 }
 
-static void
-buttons(void* arg)
-{
+static tU32 LED_ADRESS_1 = 0x00010000;
+static tU32 LED_ADRESS_2 = 0x00020000;
+static tU32 LED_ADRESS_3 = 0x00040000;
+static tU32 LED_ADRESS_4 = 0x00080000;
+
+static void leds(void* arg) {
+	tU16 randLed = 0;
+	unsigned bit;
+	tU16 lfsr = 0xACE1u;
+
+	for (;;) {
+
+
+		randLed = rand(&bit, &lfsr) % 4;
+
+		switch (randLed) {
+		case 0:
+			toggleLed(LED_ADRESS_1, 1, delay);
+			break;
+		case 1:
+			toggleLed(LED_ADRESS_2, 2, delay);
+			break;
+		case 2:
+			toggleLed(LED_ADRESS_3, 3, delay);
+			break;
+		case 3:
+			toggleLed(LED_ADRESS_4, 4, delay);
+			break;
+
+		}
+		actualLed = 0;
+		delayMs(delay);
+	}
+}
+
+void clearBuffer(char *buff, tU16 length) {
+	int i;
+	for (i = 0; i < length; i = i + 1) {
+		if (i != length-1) {
+			buffer[i] = ' ';
+		} else {
+			buffer[i] = '\0';
+		}
+	}
+}
+
+void clearBuffers() {
+	clearBuffer(buffer, 6);
+	clearBuffer(buffer2, 3);
+	clearBuffer(buffer3, 6);
+	printf("clearBuffers() called \n");
+}
+
+void gameLCD() {
+	lcdClrscr();
+	lcdGotoxy(16, 10);
+	lcdPuts("REFLEX GAME");
+}
+
+void displayActualScore() {
+	lcdGotoxy(16, 40);
+	lcdPuts("Wynik: ");
+	lcdPuts(buffer);
+	lcdPuts("\n");
+	lcdGotoxy(16, 66);
+	lcdPuts("Ruchy: ");
+	my_utoa(turns, buffer2);
+	lcdPuts(buffer2);
+	clearBuffers();
+}
+
+void disableActualLedAndCountScore(unsigned int ioset, int* result) {
+	turns = turns + 1;
+	turnDelay();
+	IOSET1 = ioset;
+	*result = *result + TIMER1_TC / 100000;
+	TIMER1_TCR = 0x00;
+	my_utoa(*result, buffer);
+	printf("%s\n", buffer);
+}
+
+void keyPressed(unsigned int ioset, int* result) {
+	gameLCD();
+	gameStarted = 1;
+	disableActualLedAndCountScore(ioset, result);
+	displayActualScore();
+}
+
+void loseLive() {
+	lives = lives - 1;
+	osSleep(8);
+}
+
+void enableScoreLeds(tU16 l) {
+
+	int j;
+	for (j = 0; j < 8; j = j + 1) {
+		setPca9532Pin(7 - j, 1);
+		setPca9532Pin(8 + j, 1);
+	}
+	osSleep(4);
+	int i;
+	for (i = 0; i < l; i = i + 1) {
+		setPca9532Pin(7 - i, 0);
+		setPca9532Pin(8 + i, 0);
+	}
+}
+
+void livesHandler() {
+	switch (lives) {
+			case 8:
+				enableScoreLeds(8);
+				break;
+			case 7:
+				enableScoreLeds(7);
+				break;
+			case 6:
+				enableScoreLeds(6);
+				break;
+			case 5:
+				enableScoreLeds(5);
+				break;
+			case 4:
+				enableScoreLeds(4);
+				break;
+			case 3:
+				enableScoreLeds(3);
+				break;
+			case 2:
+				enableScoreLeds(2);
+				break;
+			case 1:
+				enableScoreLeds(1);
+				break;
+			case 0:
+				enableScoreLeds(0);
+				break;
+			}
+}
+
+void correctlyButtonPressedDetectors(int* result) {
+	//detect if P1.20 key is pressed
+	if ((IOPIN1 & 0x00100000) == 0 && actualLed == 1) {
+		keyPressed(0x00010000, result);
+	}
+
+	//detect if P1.21 key is pressed
+	if ((IOPIN1 & 0x00200000) == 0 && actualLed == 2) {
+		keyPressed(0x00020000, result);
+	}
+
+	//detect if P1.22 key is pressed
+	if ((IOPIN1 & 0x00400000) == 0 && actualLed == 3) {
+		keyPressed(0x00040000, result);
+	}
+
+	//detect if P1.23 key is pressed
+	if ((IOPIN1 & 0x00800000) == 0 && actualLed == 4) {
+		keyPressed(0x00080000, result);
+	}
+}
+
+void badlyButtonPressedDetectors() {
+	if ((IOPIN1 & 0x00800000) == 0 && actualLed != 4) {
+		loseLive();
+	}
+	if ((IOPIN1 & 0x00400000) == 0 && actualLed != 3) {
+		loseLive();
+	}
+	if ((IOPIN1 & 0x00200000) == 0 && actualLed != 2) {
+		loseLive();
+	}
+	if ((IOPIN1 & 0x00100000) == 0 && actualLed != 1) {
+		loseLive();
+	}
+}
+
+int buttonsHandler(int *result) {
+	if (lives != 0) {
+		correctlyButtonPressedDetectors(result);
+		badlyButtonPressedDetectors();
+		return 0;
+	} else {
+		return 1;
+	}
+}
+
+tU16 setLivesByKnobValue() {
+	tU16 poten = getAnalogueInput(AIN1);
+	printf("%d", poten);
+	if (poten <= 125) {
+		return 1;
+	} else if (poten >= 126 && poten <= 250) {
+		return 2;
+	} else if (poten >= 251 && poten <= 375) {
+		return 3;
+	} else if (poten >= 376 && poten <= 500) {
+		return 4;
+	} else if (poten >= 501 && poten <= 625) {
+		return 5;
+	} else if (poten >= 626 && poten <= 750) {
+		return 6;
+	} else if (poten >= 751 && poten <= 875) {
+		return 7;
+	} else if (poten >= 876) {
+		return 8;
+	}
+}
+
+static void buttons(void* arg) {
 	tU8 pca9532Present = FALSE;
 	clearBuffers();
 	int result = 0;
@@ -233,206 +367,66 @@ buttons(void* arg)
 	//check if connection with PCA9532
 	pca9532Present = pca9532Init();
 
-	if (TRUE == pca9532Present)
-	{
+	if (TRUE == pca9532Present) {
 		printf("lcd dziala");
 		lcdInit();
-		lcdColor(0xff,0x00);
+		lcdColor(0xff, 0x00);
 		lcdClrscr();
 		lcdIcon(16, 0, 97, 60, _ea_97x60c[2], _ea_97x60c[3], &_ea_97x60c[4]);
-	    lcdGotoxy(16,66);
-	    lcdPuts("Designed and");
-	    lcdGotoxy(20,80);
-	    lcdPuts("produced by");
-	    lcdGotoxy(0,96);
-	    lcdPuts("turbo smieszki");
-	    lcdGotoxy(8,112);
-	    lcdPuts("(C)2009 (v1.1)");
+		lcdGotoxy(16, 66);
+		lcdPuts("Designed and");
+		lcdGotoxy(20, 80);
+		lcdPuts("produced by");
+		lcdGotoxy(0, 96);
+		lcdPuts("turbo smieszki");
+		lcdGotoxy(8, 112);
+		lcdPuts("(C)2009 (v1.1)");
+	} else {
+		printf("Problem z LCD\n");
 	}
-	else
-	  {
-		  printf("Problem z LCD\n");
-	  }
 
 
-  for(;;)
-  {
+	for (;;) {
+		if (!gameStarted) {
+			lives = setLivesByKnobValue();
+		}
+		livesHandler();
+		if (buttonsHandler(&result)) {
+			break;
+		}
+		osSleep(5);
+	}
+	lcdClrscr();
+	lcdPuts("GAME OVER \n");
+	lcdPuts("Wynik: ");
+	my_utoa(result, buffer);
+	lcdPuts(buffer);
+	lcdPuts("\nNajlepszy: ");
+	int best_score = 0;
+	best_score = get_score();
+	my_utoa(best_score, buffer3);
+	lcdPuts(buffer3);
 
-	  //zycia diody
-	  switch(lives)
-	  {
-	  case 8:
-		  setPca9532Pin(0, 0);
-		  setPca9532Pin(15, 0);
-		  setPca9532Pin(1, 0);
-		  setPca9532Pin(14, 0);
-		  setPca9532Pin(2, 0);
-		  setPca9532Pin(13, 0);
-		  setPca9532Pin(3, 0);
-		  setPca9532Pin(12, 0);
-		  setPca9532Pin(4, 0);
-		  setPca9532Pin(11, 0);
-		  setPca9532Pin(5, 0);
-		  setPca9532Pin(10, 0);
-		  setPca9532Pin(6, 0);
-		  setPca9532Pin(9, 0);
-		  setPca9532Pin(7, 0);
-		  setPca9532Pin(8, 0);
-		  break;
-	  case 7:
-		  setPca9532Pin(0, 1);
-		  setPca9532Pin(15, 1);
-		  break;
+	lcdPuts("\nJoy UP zapisz\n wynik  ");
+	//joystikc w góre
+	osSleep(300);
+	tU8 pressedKey = checkKey();
 
-	  case 6:
-		  setPca9532Pin(1, 1);
-		  setPca9532Pin(14, 1);
-		  break;
-	  case 5:
-		  setPca9532Pin(2, 1);
-		  setPca9532Pin(13, 1);
-		  break;
-	  case 4:
-		  setPca9532Pin(3, 1);
-		  setPca9532Pin(12, 1);
-		  break;
-	  case 3:
-		  setPca9532Pin(4, 1);
-		  setPca9532Pin(11, 1);
-		  break;
-	  case 2:
-		  setPca9532Pin(5, 1);
-		  setPca9532Pin(10, 1);
-		  break;
-	  case 1:
-		  setPca9532Pin(6, 1);
-		  setPca9532Pin(9, 1);
-		  break;
-	  case 0:
-		  setPca9532Pin(7, 1);
-		  setPca9532Pin(8, 1);
-		  break;
-	  }
+	if (pressedKey == KEY_UP) {
+		lcdPuts("\nZapisano!");
+		osSleep(200);
+		saveToEpprom(result);
+	}
 
-	  inline void gameLCD()
-	  {
-		lcdClrscr();
-		lcdGotoxy(16,10);
-		lcdPuts("REFLEX GAME");
-	  }
+	if (pressedKey == KEY_DOWN) {
+		clearEEPROM();
+	}
 
-	  inline void keyPressed(unsigned int ioset)
-	  {
-		  gameLCD();
-
-		  turns = turns + 1;
-		  turnDelay();
-		  IOSET1 = ioset;
-		  result = result + TIMER1_TC / 100000;
-		  TIMER1_TCR = 0x00;
-		  my_utoa(result, buffer);
-		  printf("%s\n", buffer);
-		  lcdGotoxy(16,40);
-		  lcdPuts("Wynik: ");
-		  lcdPuts(buffer);
-		  lcdPuts("\n");
-		  lcdGotoxy(16,66);
-		  lcdPuts("Ruchy: ");
-		  my_utoa(turns, buffer2);
-		  lcdPuts(buffer2);
-		  clearBuffers();
-	  }
-
-	  inline void loseLive()
-	  {
-		  lives = lives -1;
-		  osSleep(8);
-	  }
-
-   if(lives!=0){
-	//detect if P1.20 key is pressed
-	  if ((IOPIN1 & 0x00100000) == 0 && actualLed == 1){
-		  keyPressed(0x00010000);
-	  }
-
-    //detect if P1.21 key is pressed
-	  if ((IOPIN1 & 0x00200000) == 0 && actualLed == 2){
-		  keyPressed(0x00020000);
-	  }
-
-
-    //detect if P1.22 key is pressed
-	  if ((IOPIN1 & 0x00400000) == 0 && actualLed == 3){
-		  keyPressed(0x00040000);
-	  }
-
-
-    //detect if P1.23 key is pressed
-	  if ((IOPIN1 & 0x00800000) == 0 && actualLed == 4){
-		  keyPressed(0x00080000);
-	  }
-
-
-	  if((IOPIN1 & 0x00800000) == 0 && actualLed!=4)
-	  {
-		  loseLive();
-	  }
-	  if((IOPIN1 & 0x00400000) == 0 && actualLed!=3)
-	  {
-		  loseLive();
-	  }
-	  if((IOPIN1 & 0x00200000) == 0 && actualLed!=2)
-	  {
-		  loseLive();
-	  }
-	  if((IOPIN1 & 0x00100000) == 0 && actualLed!=1)
-	  {
-		  loseLive();
-	  }
-
-   }
-   else
-   {
-	  break;
-   }
-
-    osSleep(5);
-    
-  }
-  lcdClrscr();
-  lcdPuts("GAME OVER \n");
-  lcdPuts("Wynik: ");
-  my_utoa(result, buffer);
-  lcdPuts(buffer);
-  lcdPuts("\nNajlepszy: ");
-  int best_score=0;
-  best_score=get_score();
-  my_utoa(best_score,buffer3);
-  lcdPuts(buffer3);
-
-  lcdPuts("\nJoy UP zapisz\n wynik  ");
-  //joystikc w góre
-  osSleep(300);
-		tU8 pressedKey=checkKey();
-
-if(pressedKey==KEY_UP)
-  {
-	  lcdPuts("\nZapisano!");
-	  osSleep(200);
-	  saveToEpprom(result);
-  }
-
-if(pressedKey==KEY_DOWN)
-  {
-	  clearEEPROM();
-  }
-
-
-  lcdClrscr();
-  osSleep(300);
-  lcdClrscr();
-  lcdPuts("Winter is\n coming");
-  osSleep(400);
+	lcdClrscr();
+	osSleep(300);
+	lcdClrscr();
+	lcdPuts("Winter is\n coming");
+	osSleep(400);
 
 }
 
@@ -445,51 +439,47 @@ if(pressedKey==KEY_DOWN)
  *    [in] arg - This parameter is not used in this application. 
  *
  ****************************************************************************/
-static void
-initProc(void* arg)
-{
-  tU8 error;
-  eaInit();
+static void initProc(void* arg) {
+	tU8 error;
+	eaInit();
 
-  printf("HELLO. DO YOU WANNA PLAY A GAME?");
+	printf("HELLO. DO YOU WANNA PLAY A GAME?");
 
-  initMyFiq(); // P0.14 calls FIQ;
+	initMyFiq(); // P0.14 calls FIQ;
 
-  IODIR1 |= 0x000F0000;  //LEDs
-  IOSET1  = 0x000F0000;  //Turn them off
-  IODIR1 &= ~0x00F00000;  //Keys
-  initKeyProc();
-//  initAdc();
-  i2cInit();
-  osCreateProcess(leds, ledsStack, LEDS_STACK_SIZE, &pid1, 3, NULL, &error);
-  osStartProcess(pid1, &error);
-  osCreateProcess(buttons, buttonsStack, BUTTONS_STACK_SIZE, &pid2, 3, NULL, &error);
-  osStartProcess(pid2, &error);
+	IODIR1 |= 0x000F0000; //LEDs
+	IOSET1 = 0x000F0000; //Turn them off
+	IODIR1 &= ~0x00F00000; //Keys
+	initKeyProc();
+	initAdc();
+	i2cInit();
+	osCreateProcess(leds, ledsStack, LEDS_STACK_SIZE, &pid1, 3, NULL, &error);
+	osStartProcess(pid1, &error);
+	osCreateProcess(buttons, buttonsStack, BUTTONS_STACK_SIZE, &pid2, 3, NULL,
+			&error);
+	osStartProcess(pid2, &error);
 
-  osDeleteProcess();
+	osDeleteProcess();
 }
 
-static void
-delayMs(tU32 delayInMs)
-{
-  /*
-   * setup timer #1 for delay
-   */
-  TIMER1_TCR = 0x02;          //stop and reset timer
-  TIMER1_PR  = 0x00;          //set prescaler to zero
-  TIMER1_MR0 = delayInMs * ((CRYSTAL_FREQUENCY * PLL_FACTOR)/ (1000 * VPBDIV_FACTOR));
-  TIMER1_IR  = 0xff;          //reset all interrrupt flags
-  TIMER1_MCR = 0x04;          //stop timer on match
-  TIMER1_TCR = 0x01;          //start timer
+static void delayMs(tU32 delayInMs) {
+	/*
+	 * setup timer #1 for delay
+	 */
+	TIMER1_TCR = 0x02; //stop and reset timer
+	TIMER1_PR = 0x00; //set prescaler to zero
+	TIMER1_MR0 = delayInMs * ((CRYSTAL_FREQUENCY * PLL_FACTOR) / (1000
+			* VPBDIV_FACTOR));
+	TIMER1_IR = 0xff; //reset all interrrupt flags
+	TIMER1_MCR = 0x04; //stop timer on match
+	TIMER1_TCR = 0x01; //start timer
 
 
-  //wait until delay time has elapsed
-  while (TIMER1_TCR & 0x01)
-    ;
+	//wait until delay time has elapsed
+	while (TIMER1_TCR & 0x01)
+		;
 }
 
-void
-appTick(tU32 elapsedTime)
-{
-  msClock += elapsedTime;
+void appTick(tU32 elapsedTime) {
+	msClock += elapsedTime;
 }
