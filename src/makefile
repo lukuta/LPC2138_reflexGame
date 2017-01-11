@@ -60,7 +60,11 @@ CSRCS   = main.c          \
           pca9532.c       \
           lcd.c           \
 		  key.c			  \
-          lcd_hw.c        
+          lcd_hw.c        \
+          pff.c           \
+          diskio.c        \
+          sd.c            \
+          spi.c           \
 
 # List assembler source files here
 ASRCS   = 
