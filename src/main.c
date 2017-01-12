@@ -81,6 +81,19 @@ static tU16 lfsr = 0xACE1u;
 
 tU32 turns = 0;
 
+
+
+
+/******************************************************************************
+*
+* Description:
+*    Save value to 0x0000 EEPROM address
+*
+* Params:
+*    [in] score - score value
+*
+*****************************************************************************/
+
 void
 saveToEpprom(int score) {
 	tU8 tmp[2];
@@ -90,6 +103,14 @@ saveToEpprom(int score) {
 	eepromWrite(0x0000, tmp, 2);
 	eepromPoll();
 }
+
+/******************************************************************************
+*
+* Description:
+*    Save 0 value to 0x0000 EEPROM address
+*
+*****************************************************************************/
+
 
 void
 clearEeprom() {
@@ -101,6 +122,18 @@ clearEeprom() {
 	eepromPoll();
 }
 
+
+
+/******************************************************************************
+*
+* Description:
+*    Save 0 value to 0x0000 EEPROM address
+*
+* Returns:
+*    int value
+*
+*****************************************************************************/
+
 int
 getScore() {
 	tU32 score = 0;
@@ -111,6 +144,18 @@ getScore() {
 	score = (buffer[1] << 8) + buffer[0];
 	return score;
 }
+
+/******************************************************************************
+*
+* Description:
+*    Convert int to char array
+*
+* Params:
+*    [in] dataIn - value to convert
+*	 [in] bffr   - output buffer
+*
+*****************************************************************************/
+
 
 void
 intToStr(int dataIn, char* bffr) {
@@ -144,12 +189,33 @@ main(void) {
 	return 0;
 }
 
+/******************************************************************************
+*
+* Description:
+*    Change delay after 5 turns
+*
+*****************************************************************************/
+
 void
 turnDelay() {
 	if (turns % 5 == 0) {
 		delay = delay * 0.8;
 	}
 }
+
+
+/******************************************************************************
+*
+* Description:
+*    Toogle choosen led for given time
+*
+* Params:
+*    [in] address - led address
+*	 [in] _actualLed   - actual Led to toggle
+*	 [in] delay  - toggle time
+*
+*****************************************************************************/
+
 
 static
 void toggleLed(tU32 address, tU16 _actualLed, tU16 delay) {
@@ -159,11 +225,31 @@ void toggleLed(tU32 address, tU16 _actualLed, tU16 delay) {
 	IOSET1 = address;
 }
 
+/******************************************************************************
+*
+* Description:
+*    Returns random number
+*
+* Returns:
+*    tU16 number
+*
+*****************************************************************************/
+
+
 tU16
 rand() {
 	bit = ((lfsr >> 0) ^ (lfsr >> 2) ^ (lfsr >> 3) ^ (lfsr >> 5)) & 1;
 	return lfsr = (lfsr >> 1) | (bit << 15);
 }
+
+
+/******************************************************************************
+*
+* Description:
+*    Leds toggle process
+*
+*****************************************************************************/
+
 
 static void
 leds(void* arg) {
@@ -222,6 +308,18 @@ leds(void* arg) {
 	}
 }
 
+
+/******************************************************************************
+*
+* Description:
+*    Char array cleaner
+* Params:
+*    [in] buff - actual buffer to clear
+*    [in] length - buffer length
+*
+*****************************************************************************/
+
+
 void
 clearBuffer(char *buff, tU16 length) {
 	int i;
@@ -234,6 +332,13 @@ clearBuffer(char *buff, tU16 length) {
 	}
 }
 
+/******************************************************************************
+*
+* Description:
+*    Clear all our buffer using clearBuffer method
+*
+*****************************************************************************/
+
 void
 clearBuffers() {
 	clearBuffer(buffer, 6);
@@ -243,12 +348,27 @@ clearBuffers() {
 	clearBuffer(timeSecBuffer, 2);
 }
 
+
+/******************************************************************************
+*
+* Description:
+*    Game title to LCD
+*
+*****************************************************************************/
 void
 gameLCD() {
 	lcdClrscr();
 	lcdGotoxy(16, 10);
 	lcdPuts("REFLEX GAME");
 }
+
+/******************************************************************************
+*
+* Description:
+*	 Game Over screen
+*    Score and moves displayed
+*
+*****************************************************************************/
 
 void
 displayActualScore() {
@@ -263,16 +383,39 @@ displayActualScore() {
 	clearBuffers();
 }
 
+
+/******************************************************************************
+*
+* Description:
+*	 Disable actual led and count score
+*
+* Params:
+*	[in] ioset - pins on input 
+*	[in] result - actual result value
+*
+*****************************************************************************/
+
 void
 disableActualLedAndCountScore(tU32 ioset, tU32* result) {
 	turns = turns + 1;
 	turnDelay();
 	IOSET1 = ioset;
-	*result = *result + TIMER1_TC / 100000;
+	*result = *result + (1000 - TIMER1_TC / 100000);
 	TIMER1_TCR = 0x00;
 	intToStr(*result, buffer);
 	printf("%s\n", buffer);
 }
+
+/******************************************************************************
+*
+* Description:
+*	 Key Pressed reaction
+*
+* Params:
+*	[in] ioset - pins on input
+*	[in] result - actual result value
+*
+*****************************************************************************/
 
 void
 keyPressed(tU32 ioset, tU32* result) {
@@ -285,11 +428,29 @@ keyPressed(tU32 ioset, tU32* result) {
 	displayActualScore();
 }
 
+
+/******************************************************************************
+*
+* Description:
+*	Lives value change (lives--)
+*
+*****************************************************************************/
+
 void
 loseLive() {
 	lives = lives - 1;
 	osSleep(8);
 }
+
+
+/******************************************************************************
+*
+* Description:
+*	Toggle lives leds
+* Params:
+*	[in] l - actual lives
+*
+*****************************************************************************/
 
 void
 enableScoreLeds(tU16 l) {
@@ -306,6 +467,13 @@ enableScoreLeds(tU16 l) {
 		setPca9532Pin(8 + i, 0);
 	}
 }
+
+/******************************************************************************
+*
+* Description:
+*	Lives handler choose value from switch
+*
+*****************************************************************************/
 
 void
 livesHandler() {
@@ -340,6 +508,17 @@ livesHandler() {
 			}
 }
 
+
+/******************************************************************************
+*
+* Description:
+*	Check if buttons were pressed correctly
+* Params:
+*	[in] result - actual result
+*
+*****************************************************************************/
+
+
 void
 correctlyButtonPressedDetectors(tU32* result) {
 	//detect if P1.20 key is pressed
@@ -363,6 +542,13 @@ correctlyButtonPressedDetectors(tU32* result) {
 	}
 }
 
+/******************************************************************************
+*
+* Description:
+*	Check if buttons were pressed uncorrectly 
+*
+*****************************************************************************/
+
 void
 badlyButtonPressedDetectors() {
 	if ((IOPIN1 & BUTTON_ADDRESS_4) == 0 && actualLed != 4) {
@@ -379,6 +565,20 @@ badlyButtonPressedDetectors() {
 	}
 }
 
+
+/******************************************************************************
+*
+* Description:
+*	Buttons handler check if gamer is out of lives
+*
+* Params:
+*   [in] result - actual result value
+*
+* Returns:
+*   int value
+*
+*****************************************************************************/
+
 int
 buttonsHandler(tU32* result) {
 	if (lives != 0) {
@@ -390,6 +590,13 @@ buttonsHandler(tU32* result) {
 	}
 }
 
+
+/****************************************************************************
+*
+* Description:
+*    function which read value from potentiometer and set users lives
+*
+****************************************************************************/
 tU16
 setLivesByKnobValue() {
 	tU16 poten = getAnalogueInput(AIN1);
@@ -412,6 +619,13 @@ setLivesByKnobValue() {
 	}
 }
 
+
+/****************************************************************************
+*
+* Description:
+*    function which read data from SD card and check if you have correct key
+*
+****************************************************************************/
 tU8
 readSerialKey() {
 	rc = pf_mount(&fatfs);
@@ -452,6 +666,14 @@ readSerialKey() {
 	}
 }
 
+
+
+/*****************************************************************************
+*
+* Description:
+*    Starting game screen
+*
+****************************************************************************/
 void
 startingGameScreen() {
 	lcdPuts("\n\n\n  Ladowanie...\n");
@@ -471,6 +693,17 @@ startingGameScreen() {
 	lcdPuts(" Turbo Smieszki\n");
 	lcdPuts("      2017");
 }
+
+
+/*****************************************************************************
+*
+* Description:
+*    Game Over screen with result etc
+*
+* Params:
+*    [in] result - result value
+*
+****************************************************************************/
 
 void
 endingGameScreen(tU32 result) {
@@ -508,6 +741,18 @@ endingGameScreen(tU32 result) {
 		clearEeprom();
 	}
 }
+
+
+/*****************************************************************************
+*
+* Description:
+*    The entry function for the buttons process.
+*
+* Params:
+*    [in] arg - This parameter is not used in this application.
+*
+****************************************************************************/
+
 
 static void
 buttons(void* arg) {
@@ -568,15 +813,27 @@ buttons(void* arg) {
 	}
 
 }
-
+/****************************************************************************
+*
+* Description:
+*    funtion which init RTC clock
+*
+****************************************************************************/
 static void
 initRtc() {
-	RTC_CCR  = 0x00000012;
 	RTC_CCR  = 0x00000010;
 	RTC_ILR  = 0x00000000;
 	RTC_CIIR = 0x00000000;
 	RTC_AMR  = 0x00000000;
 }
+
+
+/****************************************************************************
+*
+* Description:
+*    a function that starts the RTC clock
+*
+****************************************************************************/
 
 static void
 startClock() {
@@ -585,6 +842,9 @@ startClock() {
 	RTC_HOUR = 0;
 	RTC_CCR = 0x00000011;
 }
+
+
+
 
 static void
 initProc(void* arg) {
@@ -613,6 +873,20 @@ initProc(void* arg) {
 	osStartProcess(pid2, &error);
 	osDeleteProcess();
 }
+
+
+
+/****************************************************************************
+*
+* Description:
+*    Function which delay the execution of process
+*
+*
+* Params:
+*    [in] deleyInMs - delay time in ms
+*
+*
+****************************************************************************/
 
 static void
 delayMs(tU32 delayInMs) {
